@@ -18,12 +18,12 @@ const config = {
   url: 'https://s1ntecs.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/MirDocs/',
+  baseUrl: '/mirDocsRepo/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
   organizationName: 's1ntecs', // Usually your GitHub org/user name.
-  projectName: 'MirDocs', // Usually your repo name.
+  projectName: 'mirDocsRepo', // Usually your repo name.
 
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',

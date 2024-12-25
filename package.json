@@ -24,7 +24,8 @@
     "@docusaurus/core": "^3.6.3",
     "@docusaurus/module-type-aliases": "3.6.3",
     "@docusaurus/preset-classic": "^3.6.3",
-    "@docusaurus/types": "3.6.3"
+    "@docusaurus/types": "3.6.3",
+    "gh-pages": "^6.2.0"
   },
   "browserslist": {
     "production": [
