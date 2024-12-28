@@ -86,8 +86,15 @@ const config = {
             type: 'docSidebar',
             sidebarId: 'tutorialSidebar',
             position: 'left',
-            label: 'Tutorial',
+            label: 'Руководство пользователя',
           },
+          {
+            type: 'doc',
+            docId: 'developer-docs/intro',
+            position: 'left',
+            label: 'Документация для программистов',
+          },
+          
           {to: '/blog', label: 'Blog', position: 'left'},
           {
             href: 'https://github.com/facebook/docusaurus',
@@ -103,7 +110,7 @@ const config = {
             title: 'Docs',
             items: [
               {
-                label: 'Tutorial',
+                label: 'Руководство пользователя',
                 to: '/docs/intro',
               },
             ],
@@ -142,10 +149,12 @@ const config = {
         copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
       },
       prism: {
-        theme: prismThemes.github,
-        darkTheme: prismThemes.dracula,
+        theme: prismThemes.oneDark, //nightOwl oceanicNext
+        darkTheme: prismThemes.nightOwl,
+        additionalLanguages: ['basic'],
       },
     }),
 };
+
 
 export default config;
