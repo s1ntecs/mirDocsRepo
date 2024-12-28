@@ -289,7 +289,7 @@ End Sub
 
 
 
-```
+```basic
 Public Sub ProcessShapesLineType(Optional startYear As Integer = 0, Optional endYear As Integer = 0, Optional pauseSec As Integer = 3)
     Dim shp As shape
     Dim conn As shape
