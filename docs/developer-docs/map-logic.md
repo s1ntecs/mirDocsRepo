@@ -276,4 +276,215 @@ Public Sub ColorShapeByGroupName(groupName As String, shp As shape)
 End Sub
 ```
 
-## Построение Линии трубопроводов
+## Построение Линии Трубопроводов
+
+В данном разделе описывается логика, по которой определяется, что каждая линия (трубопровод) имеет входное и выходное соединения. Эти соединения позволяют алгоритму понимать, куда «притекать» флюиду и откуда «утекать», формируя тем самым схему для дальнейшего расчёта материального баланса.
+
+- **Входное соединение** — это объект (например, какой-то технологический узел), к которому трубопровод «подключён» своим началом.
+- **Выходное соединение** — это конечный объект, куда трубопровод «ведёт» свой поток.
+
+Также обрабатываются различные стили линий (сплошная, штриховая, точечная), которые в дальнейшем позволяют алгоритму понимать назначение трубопровода и корректно добавлять их в таблицу для расчётов.
+
+### Основная процедура: ProcessShapesLineType
+
+
+
+```
+Public Sub ProcessShapesLineType(Optional startYear As Integer = 0, Optional endYear As Integer = 0, Optional pauseSec As Integer = 3)
+    Dim shp As shape
+    Dim conn As shape
+    Dim endshp As shape
+    Dim currentShape As shape
+    Dim ungroupedShapes As ShapeRange
+    Dim reGroupedShapes As shape
+    Dim groupAltText As String
+    
+    Dim processedShapes As New Collection
+    Dim shapeQueue As New Collection
+    
+    Dim lineType As String
+    Dim lineName As String
+    Dim lineRowInt As Long
+    
+    Dim beginConnectionRow As String
+    Dim endConnetionRow As String
+    
+    Dim beginShapeAltText As Variant
+    Dim endShapeAltText As Variant
+    Dim lineAltText As Variant
+    
+    Dim shapeWithLine As ShapeWithLineClass
+    
+    Set objectsCollection = New Collection
+    Set currentShape = FindLeftmostShape()
+    
+    Call setPublicYearData
+    
+    Call Otkl_Ekran_Max
+```
+Перед записью новых данных о входных и выходных трубопроводов(объектов) вызывается структура которая очищает информацию по входным и выходным объектам(трубам) в листе "МТБ" - мы храним информацию о том какие выходные и входные трубопроводы есть у конкретного объекта в Листе "МТБ" в столбцах:
+    - входные трубопроводы(объекты) - столбцы с 19 по 22
+    - выходные трубопроводы(объекты) - столбцы с 35 по 38
+на рисунке изрображена строка из Листа "МТБ" в которой показана что из **"Чаянда купол(газ)"** выходит только один трубопровод который ведет в **"УКПГ-2 Чаянда"**, а входит в него объект под номером **"66"**
+![Лист МТБ входные и выходные объекты](./img/inOutTable.PNG "Лист МТБ входные и выходные объекты")
+
+Функция ClearOutputObjs очищает данные ячейки, чтобы вставить новую информацию.
+```basic
+    Call ClearOutputObjs ' Очистим все выходные и входные соединения с объектами
+```
+
+```basic
+
+Sub ClearOutputObjs()
+    Dim conn As shape
+    Dim shp As shape
+    Dim shapeWithLine As ShapeWithLineClass
+    Dim ungroupedShapes As ShapeRange
+    Dim reGroupedShapes As shape
+    Dim originalGroupName As String
+    Dim originalGroupAltText As String
+    
+    ' Итерация по всем фигурам на листе
+    For Each conn In ActiveSheet.Shapes
+        Set shapeWithLine = New ShapeWithLineClass
+        Set shapeWithLine.lineShape = conn
+
+        If conn.connector Then
+            ' Обработка одиночного соединительного объекта
+            If conn.ConnectorFormat.BeginConnected And conn.ConnectorFormat.EndConnected Then
+                LoadObjsConnections conn, shapeWithLine
+                ClearObjOutputInTablePromisloviiPipe shapeWithLine
+            End If
+        End If
+    Next conn
+End Sub
+' Обработка соединительного объекта
+Sub LoadObjsConnections(connector As shape, ByRef shapeWithLine As ShapeWithLineClass)
+    If connector.ConnectorFormat.BeginConnected Then
+        ' Получаем начальные и конечные объекты
+        Dim beginShape As shape
+        Dim endShape As shape
+        
+        Set beginShape = connector.ConnectorFormat.BeginConnectedShape
+        Set endShape = connector.ConnectorFormat.EndConnectedShape
+        
+        ' Устанавливаем строки начального и конечного объекта
+        shapeWithLine.beginConnectionRow = ExtractRowFromName(beginShape.name)
+        shapeWithLine.endConnetionRow = ExtractRowFromName(endShape.name)
+        
+        
+        ' Добавляем данные о соединении в таблицу
+        shapeWithLine.beginConnectionObjName = beginShape.name
+        shapeWithLine.endConnectionObjName = endShape.name
+    End If
+End Sub
+' Удаление старых выходных потоков из Листа МТБ при соединении промысловых трубопроводов
+Sub ClearObjOutputInTablePromisloviiPipe(shapeWithLine As ShapeWithLineClass)
+    
+    ' Устанавливаем строки начального и конечного объекта
+    Sheets("МТБ").Range(Sheets("МТБ").Cells(shapeWithLine.beginConnectionRow, 19), Sheets("МТБ").Cells(shapeWithLine.beginConnectionRow, 22)).ClearContents
+    Sheets("МТБ").Range(Sheets("МТБ").Cells(shapeWithLine.beginConnectionRow, 35), Sheets("МТБ").Cells(shapeWithLine.beginConnectionRow, 38)).ClearContents
+
+    Sheets("МТБ").Range(Sheets("МТБ").Cells(shapeWithLine.endConnetionRow, 19), Sheets("МТБ").Cells(shapeWithLine.endConnetionRow, 22)).ClearContents
+    Sheets("МТБ").Range(Sheets("МТБ").Cells(shapeWithLine.endConnetionRow, 35), Sheets("МТБ").Cells(shapeWithLine.endConnetionRow, 38)).ClearContents
+
+End Sub
+```
+
+Продолжаем структуру после выполнения ClearOutputObjs
+
+Код обходит все фигуры(**ActiveSheet.Shapes**) на листе "Карта" (включая группы), и  определяет, какие из shapes являются линиями (трубопроводами) **conn.connector**, и собирает необходимую информацию о подключениях. Записывается информацию в Лист МТБ по каждому объекту, трубопроводу, к какому объекту какие у него есть входные и выходные трубопроводы и объекты 
+```basic
+    Vremya_Pusk = Time 'включаем секундомер
+    Sheets("МТБ").Range("Старт") = Vremya_Pusk
+    
+    For Each conn In ActiveSheet.Shapes
+        Set shapeWithLine = New ShapeWithLineClass
+    
+        lineType = "None"
+        lineName = ""
+        
+        Set shapeWithLine.lineShape = conn
+        shapeWithLine.lineType = lineType
+        shapeWithLine.lineName = lineName
+```
+**ShapeWithLineClass** - это класс модуль для хранения данных (dataclass)
+
+```basic
+        Set currentShape = shapeWithLine.lineShape
+
+        ' Тут был If conn.Type = msoGroup Then уже не используется
+        If conn.connector Then
+            ' Это для трубопроводов
+            If conn.ConnectorFormat.BeginConnected And conn.ConnectorFormat.EndConnected Then
+                lineName = conn.name
+                Set endshp = conn.ConnectorFormat.EndConnectedShape
+                endShapeAltText = ParseAlternativeText(endshp.AlternativeText)
+                
+                Set currentShape = conn.ConnectorFormat.BeginConnectedShape
+                beginShapeAltText = ParseAlternativeText(currentShape.AlternativeText)
+                
+```
+
+При создании геометрических фигур(объектов, не трубопроводов) мы задали в атрибуте фигуры(Shape).AlternativeText данные об объекте это **"Название объекта"&"Модель Объекта"&"Тип Объекта"**
+    - пример: shape.AlternativeText = **НПС 12&Объект&НПС**
+этот текст парсится на и присваиваются данные для объетов
+
+```basic
+                
+                beginConnectionRow = currentShape.name
+                
+                If IsNumeric(lineName) Then
+                    lineRowInt = CLng(lineName)
+                Else
+                    lineRowInt = CLng(-1) ' Значение по умолчанию
+                End If
+                
+                endConnetionRow = endshp.name
+                Set shapeWithLine = New ShapeWithLineClass
+                Set shapeWithLine.endConnetionShape = conn.ConnectorFormat.EndConnectedShape
+                Set shapeWithLine.lineShape = conn
+                
+                
+                shapeWithLine.beginConnectionRow = CLng(beginConnectionRow)
+                shapeWithLine.beginConnectionObjName = beginShapeAltText(0)
+                shapeWithLine.beginConnectionObjModel = beginShapeAltText(1)
+                shapeWithLine.beginConnectionObjGroup = beginShapeAltText(2)
+                Set shapeWithLine.beginConnetionShape = currentShape
+                            
+                shapeWithLine.lineType = lineType
+                shapeWithLine.lineName = lineName
+                
+                shapeWithLine.endConnetionRow = CLng(endConnetionRow)
+                shapeWithLine.endConnectionObjName = endShapeAltText(0)
+                shapeWithLine.endConnectionObjModel = endShapeAltText(1)
+                shapeWithLine.endConnectionObjGroup = endShapeAltText(2)
+                Set shapeWithLine.endConnetionShape = endshp
+                shapeWithLine.lineRow = lineRowInt
+```
+Эта часть кода нам нужна чтобы использовать разную логику записи информации об объектах, **msoLineDash(перерывистая линия)** если соединительная труба является **промысловой**(про промысловые объекты прочитет тут -----)? для остальных трубопроводов используется **msoLineSolid(сплошная линия)** и вызывается структура **AddFlowsToTableAndInitObjects**
+
+```basic
+                Select Case conn.line.DashStyle
+                    
+                    Case msoLineSolid
+                        lineType = "Solid"
+                        AddFlowsToTableAndInitObjects shapeWithLine
+                    Case msoLineDash
+                        shapeWithLine.lineName = "Промысловая труба"
+                        AddDashLineDataToTable shapeWithLine
+                    Case msoLineDot
+                        lineType = "Dot"
+                    Case msoLineLongDashDot
+                        lineType = "LongDashDot"
+                    Case Else
+                        lineType = "Other"
+                End Select
+                    
+            End If
+        
+        End If
+    Next conn
+    Call CalculateMaterialBalance(startYear, endYear, pauseSec)
+End Sub
+```
